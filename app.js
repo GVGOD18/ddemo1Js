@@ -1,28 +1,38 @@
-/*eslint-env node*/
-
-//------------------------------------------------------------------------------
-// node.js starter application for Bluemix
-//------------------------------------------------------------------------------
-
-// This application uses express as its web server
-// for more info, see: http://expressjs.com
-var express = require('express');
-
-// cfenv provides access to your Cloud Foundry environment
-// for more info, see: https://www.npmjs.com/package/cfenv
-var cfenv = require('cfenv');
-
-// create a new express server
-var app = express();
-
-// serve the files out of ./public as our main files
-app.use(express.static(__dirname + '/public'));
-
-// get the app environment from Cloud Foundry
-var appEnv = cfenv.getAppEnv();
-
-// start server on the specified port and binding host
-app.listen(appEnv.port, '0.0.0.0', function() {
-  // print a message when the server starts listening
-  console.log("server starting on " + appEnv.url);
+const http = require('http');
+const https = require('https');
+var portNumber = process.env.VCAP_APP_PORT || 8080;
+const server = http.createServer(handleRequests);
+server.listen(portNumber, function() {
 });
+
+function handleRequests(userRequest, userResponse) {
+    userResponse.writeHead(200, {'Content-type': 'text/plain'});
+    const inputData = JSON.stringify({
+        "model_id": "en-es",
+        "text": "Hello"
+    });
+var outputData = '';
+var vcap_services = JSON.parse(process.env.VCAP_SERVICES);
+const username = 'apikey';
+const password = vcap_services.language_translator[0].credentials.apikey;
+const options = {
+        hostname: 'gateway.watsonplatform.net',
+        path: '/language-translator/api/v3/translate?version=2018-05-01',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': inputData.length,
+            'Authorization': 'Basic ' + Buffer.from(username + ':' + password).toString('base64')
+        }
+};
+const languageTranslatorRequest = https.request(options, function(languageTranslatorResponse) {
+        languageTranslatorResponse.on('data', function(d) {
+                outputData+=d;
+              });
+        languageTranslatorResponse.on('end', function() {
+          userResponse.end(outputData);
+      });      
+});
+languageTranslatorRequest.write(inputData);
+languageTranslatorRequest.end();
+}
